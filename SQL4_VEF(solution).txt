@@ -1,0 +1,53 @@
+-- Question 1:  Write an SQL query to fetch the No of orders order by date along with cumulative count in July 2018  from orders table (date value is based on purchasing time)
+
+
+ SELECT distinct DATE(order_purchase_timestamp)
+ , COUNT( order_id) OVER (ORDER BY DATE(order_purchase_timestamp) ) as cumsum
+ FROM `ecommerce.orders` t1
+ WHERE date(t1.order_purchase_timestamp ) >= DATE '2018-07-01'
+ AND date(t1.order_purchase_timestamp ) <= DATE '2018-07-31'
+ ;
+ 
+-- Question 2:  Write an SQL query to fetch the No of sellers order by date along with cumulative count in July 2018 from order_item_profile table (date value is based on shipping limit date)
+
+with raw as 
+(
+  SELECT DISTINCT DATE(t1.shipping_limit_date )  date
+ , COUNT(distinct  seller_id) seller_per_day
+ FROM `ecommerce.order_item_profile` t1
+ WHERE date(t1.shipping_limit_date  ) >= DATE '2018-07-01'
+ AND date(t1.shipping_limit_date  ) <= DATE '2018-07-31'
+ group by 1
+ )
+ 
+ SELECT date
+ , seller_per_day 
+,  sum( seller_per_day) OVER (ORDER BY date) as cumsum
+from raw
+;
+
+-- Question 3: Find the latest transaction of each seller from order_item_profile (date value is based on shipping limit date)
+
+SELECT * FROM
+ (
+ SELECT *
+ , DENSE_RANK() OVER (PARTITION BY seller_id ORDER BY shipping_limit_date DESC ) as rn
+ FROM  `ecommerce.order_item_profile`
+ )
+WHERE rn = 1
+;
+
+
+-- Question 4: Your manage wants to run an A|B test and asks you to pick randomly 20 product id each category from item_profile table for sampling.
+-- Suggestion: Use RAND() and ROW_NUMBER ()
+
+SELECT * FROM
+ (
+ SELECT category
+ , product_id
+ , ROW_NUMBER() OVER (PARTITION BY category ORDER BY RAND()) AS rn
+ FROM ecommerce.item_profile
+ )
+WHERE rn BETWEEN 1 AND 10
+;
+

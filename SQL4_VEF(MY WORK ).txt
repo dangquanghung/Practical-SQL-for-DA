@@ -1,0 +1,64 @@
+--Reviewer: Buu Gia
+--Correct: 4/4
+
+-- Question 1:  Write an SQL query to fetch the No of orders order by date along with cumulative count in July 2018  from orders table (date value is based on purchasing time)
+
+with T as(
+select
+date(O.order_purchase_timestamp) as dates ,
+count(O.order_id) as cumulative
+from `sqldataset.ecommerce.orders` O
+where date(O.order_purchase_timestamp) between '2018-07-01' and '2018-07-31'
+group by 1
+)
+select dates ,
+sum(cumulative ) over (order by dates  ) AS cumulative_COUNT
+from T ;
+--OK
+--Có thể ngắn gọn hơn như sau:
+/*
+SELECT DISTINCT DATE(order_purchase_timestamp) as date, COUNT(order_id) OVER (ORDER BY DATE(order_purchase_timestamp)) as cum_count_orders
+FROM `sqldataset.ecommerce.orders`
+WHERE DATE(order_purchase_timestamp) BETWEEN '2018-07-01'AND '2018-07-31'
+ORDER BY 1;
+*/
+ 
+-- Question 2:  Write an SQL query to fetch the No of sellers order by date along with cumulative count in July 2018 from order_item_profile table (date value is based on shipping limit date)
+
+WITH t AS(
+select
+DATE( o.shipping_limit_date) AS DATE,
+COUNT(DISTINCT o.seller_id) AS COUNT
+FROM `sqldataset.ecommerce.order_item_profile` o
+WHERE DATE(o.shipping_limit_date) BETWEEN '2018-07-01' AND '2018-07-31'
+GROUP BY 1
+)
+SELECT 
+DATE, 
+count as seller_count,
+SUM(COUNT ) OVER(ORDER BY DATE)  as cumulative_count
+FROM t;
+--OK
+
+
+-- Question 3: Find the latest transaction of each seller from order_item_profile (date value is based on shipping limit date)
+
+with T as(
+select
+*,
+dense_rank() over(partition by  O.seller_id order by (O.shipping_limit_date) desc) as rn
+from `sqldataset.ecommerce.order_item_profile` O
+)
+select * from T where rn = 1;
+--OK
+
+-- Question 4: Your manage wants to run an A|B test and asks you to pick randomly 20 product id each category from item_profile table for sampling.
+-- Suggestion: Use RAND() and ROW_NUMBER ()
+with t as(
+SELECT 
+t.category, t.product_id, 
+row_number() over (partition by category order by rand()) as rn
+FROM `sqldataset.ecommerce.item_profile`t
+)
+select * from t where rn <=20;
+--OK

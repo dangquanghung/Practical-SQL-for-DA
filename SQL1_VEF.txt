@@ -1,0 +1,82 @@
+-- Question 1: Write an SQL query to print the highest order value of 02 Jan 2018 (according to shipping_limit_date)
+-- order value = (price + freight_value) 
+
+SELECT MAX(order_value) AS highest_order_value 
+FROM 
+  (
+  SELECT 
+  order_id
+  , SUM(price+ freight_value ) as order_value
+  FROM `sqldataset.ecommerce.order_item_profile` 
+  WHERE DATE(shipping_limit_date) = DATE '2018-01-02'
+  GROUP BY 1 
+  )
+;
+
+
+
+-- Question 2: Write an SQL query to show the second highest order value ((price + freight_value) from a order_item_profile table
+
+
+with order_value_table AS
+  (
+  SELECT 
+  order_id
+  , SUM(price+ freight_value ) as order_value
+  FROM `sqldataset.ecommerce.order_item_profile` 
+  GROUP BY 1 
+  )
+
+SELECT MAX(order_value) as seccond_highest_value
+FROM order_value_table 
+WHERE order_value <> (SELECT MAX(order_value) FROM order_value_table)
+;
+
+
+-- Question3: Write an SQL query to fetch the no. of seller having sales for each day in June 2018 order_item_profile table
+
+SELECT 
+DATE(shipping_limit_date) as Date 
+, COUNT(DISTINCT seller_id)  AS No_seller 
+FROM `sqldataset.ecommerce.order_item_profile`  
+WHERE DATE(shipping_limit_date) BETWEEN DATE '2018-06-01' AND DATE '2018-06-30'
+GROUP BY 1
+ORDER BY 1 
+;
+
+
+-- Question 4: Write an SQL query to fetch all states that have more than than 100 customers in it from user_profile table
+
+SELECT 
+customer_state
+, COUNT( DISTINCT customer_unique_id) as No_buyer 
+FROM `sqldataset.ecommerce.user_profile` 
+GROUP BY 1 
+HAVING No_buyer > 100 
+;
+
+
+
+-- Question 5: Write an SQL query to print the no of order and AVG order’s price (disregarded freight_value) per seller for each day in June 2018
+
+with order_value_table AS
+  (
+  SELECT 
+  DATE(shipping_limit_date) as Date_order
+  , seller_id
+  , order_id
+  , SUM(price) as order_value
+  FROM `sqldataset.ecommerce.order_item_profile`
+  WHERE DATE(shipping_limit_date) BETWEEN DATE '2018-06-01' AND DATE '2018-06-30'
+  GROUP BY 1,2,3
+  )
+
+SELECT 
+Date_order
+, seller_id
+, COUNT(DISTINCT order_id)
+, AVG(order_value) 
+FROM order_value_table 
+GROUP BY 1,2 
+ORDER BY 1,2 
+

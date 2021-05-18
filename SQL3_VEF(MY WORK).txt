@@ -1,0 +1,106 @@
+-- Question1:
+-- Monthly GMV (no need to add freight_value) of selles are segmented as below:
+-- Monthly GMV < 200 : Low GMV
+-- Monthly GMV >= 200 and < 1000: Medium GMV
+-- Monthly GMV >= 1000 : High GMV
+
+-- How many sellers of each group in Jan 2018 (count by order_purchase_timestamp in orders table)
+with T as (
+select 
+distinct t1.seller_id , 
+sum(price) as total
+from `sqldataset.ecommerce.order_item_profile`t1 
+left join `sqldataset.ecommerce.orders` t2 on t1.order_id = t2.order_id
+where date(t2.order_purchase_timestamp) between '2018-01-01' and '2018-01-31' 
+group by 1
+)
+select 
+case 
+when total < 200 then 'Low GMV'
+when total >= 200 and total <1000 then 'Medium GMV'
+when total >=1000 then 'High GMV'
+END as Monthly_GMV,
+count(distinct  T.seller_id)
+from T 
+group by 1;
+
+
+
+ 
+ 
+#  Điền query của bạn vào đây và kết thúc bằng dấu chấm phẩy
+ 
+ 
+ 
+-- Question2:  On what day of week brazilians customers tend to do online purchasing? (Moday or Tuesday or...)
+
+with T AS(
+select 
+extract (dayofweek from t1.order_purchase_timestamp) as date_of_week,
+count(t1.order_id) as No_Orders	
+from `sqldataset.ecommerce.orders` t1
+# inner join `sqldataset.ecommerce.user_profile` t2 on t1.customer_id = t2.customer_unique_id
+group by 1
+order by 1
+)
+select 
+case 
+when date_of_week = 1 then 'Sun'
+when date_of_week = 2 then 'Mon'
+when date_of_week = 3 then 'Tue'
+when date_of_week = 4 then 'Wes'
+when date_of_week = 5 then 'Thu'
+when date_of_week = 6 then 'Fri'
+when date_of_week = 7 then 'Sat'
+end as Date_of_Week,
+No_Orders
+from T
+order by 2 DESC ;
+
+
+
+
+
+
+
+-- Question3: How many customers who made transactions from Jan to June 2018 and repurchased in the next following month. 
+
+with T as(
+select 
+date_trunc(date(t1.order_purchase_timestamp), month) as month_ ,
+t2.customer_unique_id as customers
+from `sqldataset.ecommerce.orders` t1
+inner join `sqldataset.ecommerce.user_profile` t2 on t1.customer_id = t2.customer_id 
+where date ( t1.order_purchase_timestamp) between date'2018-01-01' and date'2018-07-30'
+group by 1,2
+)
+select 
+t1.month_,
+count(t1.customers ),
+count(t2.customers) ,
+(count(t2.customers)/count(t1.customers ))
+from T t1
+ left join T t2 on t1.customers  = t2.customers
+ and t1.month_=date_add(t2.month_, INTERVAL -1 month )
+group by 1
+order by 1;
+
+
+
+
+-- Question4: Build retention cohort. Follow guideline on example no 5 on blog:
+--https://medium.com/@thuydu.nguyen/sql-for-real-business-cases-2a7466e32746
+
+
+
+
+
+
+
+
+
+
+
+
+
+

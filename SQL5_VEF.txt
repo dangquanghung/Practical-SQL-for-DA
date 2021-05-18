@@ -1,0 +1,180 @@
+--Reviewer: Bửu Gia
+--Correct: 4/4
+
+-- Question 1: Track no of orders, GMV (no need to count shipping fee), no of buyer each day by state to build dashboard.
+with Table_1 as
+(
+select
+a.order_id,
+b.price,
+c.customer_unique_id,
+Date(a.order_purchase_timestamp) as Date,
+c.customer_state
+from ecommerce.orders a
+left join ecommerce.order_item_profile b on a.order_id=b.order_id
+left join ecommerce.user_profile c on a.customer_id=c.customer_id
+order by c.customer_state, Date
+)
+select
+customer_state,
+Date,
+count(distinct order_id) as No_order,
+sum(price) as GMV,
+count(distinct customer_unique_id) as No_customers
+from Table_1
+group by 1,2
+order by 1,2 asc
+;
+--COMMENT: kết quả đúng, nhưng Trân có thể viết gọn lại như cách này ha, tham khảo :D
+----------------------------------------
+        select
+        c.customer_state,
+        Date(a.order_purchase_timestamp) as Date,
+        count(distinct a.order_id) as No_order,
+        sum(price) as GMV,
+        count(distinct customer_unique_id) as No_customers
+        from ecommerce.orders a
+        left join ecommerce.order_item_profile b on a.order_id=b.order_id
+        left join ecommerce.user_profile c on a.customer_id=c.customer_id
+        group by 1,2
+        order by 1,2 asc;
+----------------------------------------
+
+-- Question 2: Count no of orders each month, and month on month growth rate
+with Table_1 as
+(
+select
+date_trunc(date(order_purchase_timestamp),month) as Month,
+count(distinct order_id) as No_of_orders,
+from ecommerce.orders 
+group by 1
+order by 1
+), table_2 as(
+select
+Month,
+No_of_orders,
+Lag(No_of_orders) over (order by Month) as order_last_month
+from Table_1
+order by 1
+)
+select 
+Month,
+No_of_orders,
+order_last_month,
+((No_of_orders-order_last_month)/order_last_month) as growth_month_rate
+from Table_2
+order by 1
+;
+--COMMENT: kết quả đúng, good em :D
+
+
+-- Question 3:
+-- Segment buyer into 3 group new/active/churn for each month:
+-- New users are those who make first purchasing in this month
+-- Active users are those  who made purchasing in the last previous month and repurchase this month
+-- Churn users are those who made purchasing in app and repurchase this month but did not active last month (churn users come back)
+-- Please refer to the answer table.
+with Table_1 as
+(
+select
+date_trunc(date(b.order_purchase_timestamp), month) as Purchase_month,
+a.customer_unique_id
+from ecommerce.user_profile a
+left join ecommerce.orders b on a.customer_id=b.customer_id
+order by 1
+), Table_2 as
+( select
+Purchase_month,
+lag(purchase_month) over(partition by customer_unique_id order by purchase_month) as Previous_month,
+customer_unique_id
+from Table_1
+order by 1
+), Table_3 as
+(select
+purchase_month,
+Date_diff(purchase_month, previous_month, month) as Month_diff,
+customer_unique_id
+
+from Table_2
+), Table_4 as
+(
+select 
+Purchase_month,
+case when (Month_diff is null) then "New User" --Bỏ điều kiện này "or Month_diff = 0" 
+when Month_diff=1  then "Active User"
+when Month_diff> 1 then "Churn User"
+end as User_segment,
+customer_unique_id
+from Table_3
+order by 1, 2
+)
+select
+Purchase_month,
+User_segment,
+count(distinct customer_unique_id) as No_of_users
+from Table_4
+where User_segment is not null
+group by 1,2
+order by 1, 2
+;
+--COMMENT: Kết quả gần đúng rồi hen em, Good rồi, em cần bỏ điều kiện or Month_diff = 0 ở phần CASE WHEN --> 'New User' như anh comment :D. Vẫn tính đúng cho e câu này vì anh tính vào khả năng áp dụng code của em vào cách xử lý vấn đề.
+------------Em có thể viết gọn lại như sau ha tham khảo :D
+----------------------------------------
+with Table_1 as
+          (
+          select
+          a.customer_unique_id,
+          date_trunc(date(b.order_purchase_timestamp), month) as Purchase_month,
+          --lag(date_trunc(date(b.order_purchase_timestamp), month)) over(partition by customer_unique_id order by date_trunc(date(b.order_purchase_timestamp), month)) as Previous_month,
+          Date_diff( date_trunc(date(b.order_purchase_timestamp), month), 
+                      lag(date_trunc(date(b.order_purchase_timestamp), month)) over(partition by customer_unique_id order by date_trunc(date(b.order_purchase_timestamp), month))
+                      , month) as Month_diff
+          from ecommerce.user_profile a
+          left join ecommerce.orders b on a.customer_id=b.customer_id
+          order by 1
+          )
+
+          select 
+                Purchase_month,
+                case when (Month_diff is null) then "New User"
+                     when Month_diff=1  then "Active User"
+                      when Month_diff > 1 then "Churn User"
+                end as User_segment,
+                count(distinct customer_unique_id) as No_of_users
+          from Table_1
+          group by Purchase_month, User_segment
+          having User_segment is not null
+          order by 1, 2;
+
+----------------------------------------
+
+
+-- Question 4: Finish retention homework
+With Table_1 as
+(
+select
+a.customer_unique_id,
+min(date_trunc(date(b.order_purchase_timestamp),month)) over (partition by a.customer_unique_id) as First_month,
+Date_trunc(date(b.order_purchase_timestamp), month) as Tran_date,
+Date_diff(Date_trunc(date(b.order_purchase_timestamp), month),min(date_trunc(date(b.order_purchase_timestamp),month)) over (partition by a.customer_unique_id), month) as Month_Diff
+from ecommerce.user_profile a
+left join ecommerce.orders b on a.customer_id=b.customer_id
+), Table_2 as
+(select
+First_month,
+count(distinct customer_unique_id) over (partition by First_month) as New_user,
+Month_diff,
+count(distinct customer_unique_id) over (partition by First_month,Tran_date) as Retain_user,
+(count(distinct customer_unique_id) over (partition by First_month,Tran_date))/(count(distinct customer_unique_id) over (partition by First_month)) as Retention
+from Table_1
+) select 
+First_month,
+New_user,
+Month_diff, Retain_user, Retention
+from Table_2
+group by 1,2,3,4,5
+order by 1
+;
+--COMMENT: Good em, idea xử lý tốt, áp dụng code tốt :D
+
+

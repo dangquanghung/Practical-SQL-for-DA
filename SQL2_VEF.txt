@@ -1,0 +1,134 @@
+--Reviewer: Buu Gia
+--Correct: 5/5
+-- Add thêm câu 13e 
+
+
+
+-- Question1:  Average sales per day of each category in June 2018 (Sum of sales of each category in June then divide 30 days)
+-- Sales: disregard freight value 
+-- Date : follow by order_purchase_timestamp
+ 
+-- Điền query của bạn vào đây và kết thúc bằng dấu chấm phẩy
+ 
+  select 
+ DISTINCT  I.category, SUM(O.price)/30 as AVG_GMV_Per_Day
+ from `sqldataset.ecommerce.item_profile` I
+ left join `sqldataset.ecommerce.order_item_profile` O on I.product_id = O.product_id 
+ left join `sqldataset.ecommerce.orders`  D on O.order_id = D.order_id 
+ where  DATE(D.order_purchase_timestamp  ) BETWEEN '2018-06-01' AND '2018-06-30'
+ GROUP BY  I.category;
+
+ --OK
+ 
+ 
+ 
+-- Question2:  Total of customer orders by state
+select 
+DISTINCT  U.customer_state, 
+count(U.customer_unique_id ) AS No_Orders	
+from `sqldataset.ecommerce.user_profile` U
+LEFT JOIN `sqldataset.ecommerce.orders` O on U.customer_id = O.customer_id 
+GROUP BY U.customer_state
+order by 2 DESC ;
+--OK
+
+
+-- Question3:  How many customers who made transactions in June 2018 but did not made any transactions in Sep 2018
+--Noted:
+-- each order is assigned to a unique customerid. This means that the same customer will get different ids for different orders. The purpose of having a customerunique_id on the dataset is to allow you to identify customers that made repurchases at the store.
+-- Date: Follow by order_purchase_timestamp
+
+
+with injune as
+(
+select 
+U.customer_unique_id 
+from `sqldataset.ecommerce.orders` O 
+left join `sqldataset.ecommerce.user_profile` U on O.customer_id = U.customer_id 
+where date(O.order_purchase_timestamp ) between '2018-06-01' and '2018-06-30'
+)
+,insep as
+(
+select 
+U.customer_unique_id 
+from `sqldataset.ecommerce.orders` O 
+left join `sqldataset.ecommerce.user_profile` U on O.customer_id = U.customer_id 
+where date(O.order_purchase_timestamp ) between '2018-09-01' and '2018-09-30'
+)
+select 
+count(distinct  injune.customer_unique_id) as no_users
+from injune 
+left join insep on injune.customer_unique_id = insep.customer_unique_id 
+where insep.customer_unique_id is null;
+
+--OK
+
+with user_sep as(
+select 
+distinct  U.customer_unique_id,
+from `sqldataset.ecommerce.user_profile`  U
+left join `sqldataset.ecommerce.orders` O on  O.customer_id = U.customer_id 
+where date(O.order_purchase_timestamp ) between '2018-09-01' and '2018-09-30'
+
+)
+select 
+distinct u.customer_unique_id , s.customer_unique_id 
+from  `sqldataset.ecommerce.user_profile` U inner join `sqldataset.ecommerce.orders` o
+on O.customer_id = U.customer_id left join user_sep s on s.customer_unique_id = U.customer_unique_id 
+where date(O.order_purchase_timestamp ) between '2018-06-01' and '2018-06-30'
+;
+
+-- Question4: No of total orders of each customers, SORT BY No of orders DESC
+
+
+select 
+U.customer_unique_id ,
+count(O.order_id ) as total_order
+from `sqldataset.ecommerce.user_profile` U 
+left join `sqldataset.ecommerce.orders` O on O.customer_id = U.customer_id 
+group by 1
+order by 2 desc ;
+--OK
+
+
+
+
+
+-- Question 5: From dummy_table dataset, count no of order of each service_group by each day. The result MUST BE the same as table Homework_Answers.lecture2_q5
+-- Suggestions:
+-- We can use a cross join.  The idea is to first do a cross join on distinct values of transaction date and service group.  These results can then be left joined back to the transactions table to obtain the correct format.
+-- Read about Cross Join: https://www.sqlshack.com/sql-cross-join-with-examples/
+
+with  service as
+(
+select 
+distinct Service_group 
+from `dummy_data.transactions` 
+)
+,transtime as
+(
+SELECT 
+distinct date(Trans_time ) as date
+FROM `dummy_data.transactions` 
+)
+, t as
+(
+SELECT
+*
+FROM service  cross join transtime 
+)
+SELECT 
+t.date 
+,t.Service_group 
+,count(D.User_id ) as no_trans
+FROM t left join `dummy_data.transactions` D on t.date  = date(D.Trans_time ) and t.Service_group =D.Service_group 
+group by 1,2
+order by 1,2
+;
+--OK
+
+
+
+
+
+

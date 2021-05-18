@@ -1,0 +1,131 @@
+-- Question1:
+-- Monthly GMV (no need to add freight_value) of selles are segmented as below:
+-- Monthly GMV < 200 : Low GMV
+-- Monthly GMV >= 200 and < 1000: Medium GMV
+-- Monthly GMV >= 1000 : High GMV
+
+-- How many sellers of each group in Jan 2018 (count by order_purchase_timestamp in orders table)
+
+WITH jan_gmv AS 
+(
+SELECT
+  DISTINCT oip.seller_id,
+  CASE
+    WHEN SUM(oip.price) < 200 THEN "Low GMV"
+    WHEN SUM(oip.price) >= 200 AND SUM(oip.price) < 1000 THEN "Medium GMV"
+    WHEN SUM(oip.price) >= 1000 THEN "High GMV"
+    ELSE NULL
+  END AS gmv_seg,
+FROM ecommerce.order_item_profile AS oip
+LEFT JOIN ecommerce.orders AS o ON oip.order_id = o.order_id
+WHERE DATE(o.order_purchase_timestamp) BETWEEN '2018-01-01' AND '2018-01-31'
+GROUP BY oip.seller_id
+)
+
+SELECT 
+	gmv_seg,
+	COUNT(DISTINCT seller_id) AS no_seller
+FROM jan_gmv
+GROUP BY gmv_seg; 
+
+ 
+-- Question2:  On what day of week brazilians customers tend to do online purchasing? (Moday or Tuesday or...)
+
+SELECT
+  FORMAT_DATE('%A', DATE(o.order_purchase_timestamp)) AS day_of_week,
+  COUNT(DISTINCT order_id) AS no_purchase
+FROM ecommerce.orders AS o
+GROUP BY day_of_week
+ORDER BY no_purchase DESC; 
+
+-- Question3: How many customers who made transactions from Jan to June 2018 and repurchased in the next following month. 
+
+WITH raw AS
+(
+SELECT DISTINCT 
+  DATE_TRUNC(DATE(order_purchase_timestamp), MONTH) AS month_date
+  , u.customer_unique_id
+FROM `sqldataset.ecommerce.user_profile` u
+LEFT JOIN `sqldataset.ecommerce.orders` o ON u.customer_id = o.customer_id
+WHERE DATE(order_purchase_timestamp) BETWEEN '2018-01-01' AND '2018-07-31'
+ORDER BY 1,2
+)
+
+SELECT 
+t1.month_date
+, COUNT(DISTINCT t1.customer_unique_id) as no_customers_this_month
+, COUNT(DISTINCT t2.customer_unique_id) as no_customers_next_month
+, COUNT(DISTINCT t2.customer_unique_id)/COUNT(DISTINCT t1.customer_unique_id) AS retention_mom
+FROM raw t1
+LEFT JOIN raw t2
+ON t1.customer_unique_id = t2.customer_unique_id AND DATE_DIFF(t2.month_date, t1.month_date, MONTH) = 1
+WHERE t1.month_date <> '2018-07-01'
+GROUP BY 1
+ORDER BY 1;
+
+
+-- Question4: Build retention cohort. Follow guideline on example no 5 on blog:
+--https://medium.com/@thuydu.nguyen/sql-for-real-business-cases-2a7466e32746
+
+WITH raw AS
+(
+SELECT DISTINCT 
+  DATE(order_purchase_timestamp) AS trans_date
+  , u.customer_unique_id AS user_id
+FROM `sqldataset.ecommerce.user_profile` u
+LEFT JOIN `sqldataset.ecommerce.orders` o ON u.customer_id = o.customer_id
+ORDER BY 1,2
+)
+
+, first_month_data AS 
+(
+SELECT user_id 
+, DATE_TRUNC(MIN(trans_date), MONTH) first_month
+FROM raw 
+GROUP BY 1 
+)
+
+
+, retain_check AS 
+(
+SELECT DISTINCT
+t1.user_id
+, t1.first_month
+, DATE_DIFF(t2.trans_date, t1.first_month, MONTH) AS month_diff
+FROM first_month_data t1 
+LEFT JOIN raw t2 on t1.user_id = t2.user_id
+)
+
+, no_user_first_month as 
+(
+SELECT first_month
+, COUNT(DISTINCT user_id) as no_new_users 
+FROM first_month_data
+GROUP BY 1
+)
+
+
+SELECT 
+t1.first_month
+, month_diff
+, no_new_users
+, COUNT(DISTINCT t1.user_id) as no_retained_users
+, COUNT(DISTINCT user_id)/no_new_users as retention_rate
+FROM retain_check t1 
+LEFT JOIN no_user_first_month t2 on t1.first_month = t2.first_month
+GROUP BY 1,2,3
+ORDER BY 1,2 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
